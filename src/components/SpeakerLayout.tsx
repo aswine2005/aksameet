@@ -22,6 +22,11 @@ const SpeakerLayout = () => {
   const participants = useParticipants();
 
   const [participantInSpotlight, ...otherParticipants] = participants;
+  // While someone presents, their camera stays visible in the strip.
+  const barParticipants =
+    participantInSpotlight && hasScreenShare(participantInSpotlight)
+      ? participants
+      : otherParticipants;
   const [participantsBar, setParticipantsBar] = useState<HTMLDivElement | null>(
     null
   );
@@ -39,9 +44,9 @@ const SpeakerLayout = () => {
   useEffect(() => {
     if (!participantsBar || !call) return;
 
-    const cleanup = call.dynascaleManager.setViewport(participantsBar);
+    const cleanup = call.setViewport(participantsBar);
 
-    return () => cleanup();
+    return () => cleanup?.();
   }, [participantsBar, call]);
 
   return (
@@ -52,7 +57,7 @@ const SpeakerLayout = () => {
       <div className="str-video__speaker-layout__wrapper">
         <div
           className={
-            participants.length > 1
+            barParticipants.length > 0
               ? 'str-video__speaker-layout__spotlight'
               : 'spotlight--one'
           }
@@ -67,17 +72,18 @@ const SpeakerLayout = () => {
               }
               ParticipantViewUI={ParticipantViewUI}
               VideoPlaceholder={VideoPlaceholder}
+              muteAudio
             />
           )}
         </div>
-        {call && otherParticipants.length > 0 && (
+        {call && barParticipants.length > 0 && (
           <div className="str-video__speaker-layout__participants-bar-buttons-wrapper">
             <div className="str-video__speaker-layout__participants-bar-wrapper">
               <div
                 ref={setParticipantsBar}
                 className="str-video__speaker-layout__participants-bar"
               >
-                {otherParticipants.map((participant) => (
+                {barParticipants.map((participant) => (
                   <div
                     key={participant.sessionId}
                     className="str-video__speaker-layout__participant-tile"
@@ -86,6 +92,7 @@ const SpeakerLayout = () => {
                       participant={participant}
                       ParticipantViewUI={ParticipantViewUI}
                       VideoPlaceholder={VideoPlaceholder}
+                      muteAudio
                     />
                   </div>
                 ))}

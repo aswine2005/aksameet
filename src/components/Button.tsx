@@ -8,6 +8,7 @@ interface ButtonProps {
   rounding?: 'sm' | 'md' | 'lg';
   className?: string;
   disabled?: boolean;
+  type?: 'button' | 'submit';
 }
 
 const Button = ({
@@ -17,16 +18,19 @@ const Button = ({
   rounding = 'sm',
   disabled = false,
   className,
+  type = 'button',
 }: ButtonProps) => {
   return (
     <button
+      type={type}
       onClick={onClick}
       className={clsx(
-        size === 'sm' && 'h-9 text-sm',
-        size === 'md' && 'h-12 text-base',
-        size === 'lg' && 'h-14 text-base',
-        rounding === 'sm' ? 'rounded' : 'rounded-full',
-        'px-6 bg-primary hover:bg-hover-primary inline-flex items-center justify-center text-center font-medium tracking-looser text-white hover:shadow transition-[border_.28s_cubic-bezier(.4,0,.2,1),box-shadow_.28s_cubic-bezier(.4,0,.2,1)] disabled:bg-[#e4e4e4] disabled:border-[#e4e4e4] disabled:text-[#999999] active:bg-deep-blue active:border-deep-blue select-none',
+        size === 'sm' && 'h-10 text-sm px-5',
+        size === 'md' && 'h-12 text-base px-6',
+        size === 'lg' && 'h-14 text-base px-8',
+        rounding === 'sm' ? 'rounded-xl' : rounding === 'md' ? 'rounded-2xl' : 'rounded-full',
+        'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 inline-flex items-center justify-center text-center font-semibold text-white shadow-lg hover:shadow-xl transition-all duration-300 active:scale-95 disabled:from-gray-300 disabled:to-gray-400 disabled:cursor-not-allowed disabled:shadow-none select-none',
+        !disabled && 'hover:scale-105',
         className
       )}
       disabled={disabled}

@@ -20,11 +20,20 @@ const MeetingPopup = () => {
   const email = user?.custom?.email || user?.name || user?.id;
   const clipboardValue =
     typeof window !== 'undefined'
-      ? window.location.href
-          .replace('http://', '')
-          .replace('https://', '')
-          .replace('/meeting', '')
+      ? `${window.location.origin}/${meetingId}`
       : '';
+
+  const addOthers = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'Join my meeting', url: clipboardValue });
+        return;
+      } catch {
+        // Share sheet dismissed; fall back to copying the link.
+      }
+    }
+    navigator.clipboard.writeText(clipboardValue).catch(console.error);
+  };
 
   const onClose = () => {
     setSeen({
@@ -70,6 +79,7 @@ const MeetingPopup = () => {
           rounding="lg"
           size="sm"
           variant="secondary"
+          onClick={addOthers}
         >
           Add others
         </ButtonWithIcon>

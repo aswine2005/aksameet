@@ -30,6 +30,11 @@
     &:hover {
       @apply !bg-[#444649];
     }
+    
+    /* Mobile optimization */
+    @media (max-width: 640px) {
+      @apply !w-11 !h-11;
+    }
   }
 
   .call-info-button {
@@ -37,6 +42,11 @@
 
     &:hover {
       @apply !bg-[#28292c];
+    }
+    
+    /* Mobile optimization */
+    @media (max-width: 640px) {
+      @apply !w-11 !h-11 p-2.5;
     }
   }
 
@@ -51,10 +61,20 @@
 
   .leave-call-button {
     @apply !w-14;
+    
+    /* Mobile optimization */
+    @media (max-width: 640px) {
+      @apply !w-11;
+    }
   }
 
   .root-theme .str-video__speech-indicator {
     gap: 1.5px;
+  }
+
+  /* Reactions: top-left, clear of the mic indicator in the top-right */
+  .root-theme .str-video__reaction {
+    @apply z-2 left-3.5 right-auto text-3xl;
   }
 
   .str-video__speech-indicator__bar,
@@ -218,5 +238,91 @@
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+  
+  /* Smooth scroll behavior */
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
+  }
+  
+  /* Custom scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 10px;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+  }
+  
+  /* Glass morphism effect */
+  .glass {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+  
+  /* Floating animation */
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+  }
+  
+  .animate-float {
+    animation: float 3s ease-in-out infinite;
+  }
+  
+  /* Mobile-specific utilities */
+  @media (max-width: 640px) {
+    .mobile-touch-target {
+      min-height: 44px;
+      min-width: 44px;
+    }
+    
+    /* Prevent text selection on mobile during interactions */
+    .mobile-no-select {
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+  }
+  
+  /* Safe area support for notched devices */
+  @supports (padding: env(safe-area-inset-bottom)) {
+    .safe-bottom {
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    
+    .safe-top {
+      padding-top: env(safe-area-inset-top);
+    }
+  }
+  
+  /* Touch-friendly hover states */
+  @media (hover: hover) and (pointer: fine) {
+    .hover-scale:hover {
+      transform: scale(1.05);
+    }
+  }
+  
+  /* Reduce motion for accessibility */
+  @media (prefers-reduced-motion: reduce) {
+    * {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
   }
 }

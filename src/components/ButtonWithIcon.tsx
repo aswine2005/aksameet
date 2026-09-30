@@ -1,9 +1,9 @@
-import { ReactNode } from 'react';
+import { ReactElement, ReactNode } from 'react';
 import clsx from 'clsx';
 
 interface ButtonWithIconProps {
   children: ReactNode;
-  icon: JSX.Element;
+  icon: ReactElement;
   onClick?: () => void;
   rounding?: 'sm' | 'md' | 'lg';
   size?: 'sm' | 'md';
@@ -15,7 +15,7 @@ const ButtonWithIcon = ({
   icon,
   children,
   onClick,
-  rounding = 'sm',
+  rounding = 'md',
   size = 'md',
   variant = 'primary',
   className,
@@ -24,19 +24,19 @@ const ButtonWithIcon = ({
     <button
       onClick={onClick}
       className={clsx(
-        rounding === 'sm' && 'rounded',
-        rounding === 'md' && 'rounded-md',
+        rounding === 'sm' && 'rounded-lg',
+        rounding === 'md' && 'rounded-xl',
         rounding === 'lg' && 'rounded-full',
         size === 'sm'
-          ? 'h-10 text-sm px-3 tracking-normal'
-          : 'h-12 text-base pr-4 pl-3',
-        variant === 'primary' && 'bg-primary hover:bg-hover-primary',
-        variant === 'secondary' && 'bg-meet-blue hover:bg-[#0a4ec4]',
-        'inline-flex items-center justify-center text-center font-medium tracking-looser text-white hover:shadow transition-[border_.28s_cubic-bezier(.4,0,.2,1),box-shadow_.28s_cubic-bezier(.4,0,.2,1)] active:bg-deep-blue active:border-deep-blue',
+          ? 'h-10 text-sm px-4 gap-2'
+          : 'h-12 text-base px-5 gap-2.5',
+        variant === 'primary' && 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700',
+        variant === 'secondary' && 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700',
+        'inline-flex items-center justify-center text-center font-semibold text-white shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 active:scale-95',
         className
       )}
     >
-      <span className="flex item-center justify-center mr-2">{icon}</span>
+      <span className="flex items-center justify-center">{icon}</span>
       {children}
     </button>
   );

@@ -14,6 +14,7 @@ import {
   MenuToggle,
   OwnCapability,
   ParticipantActionsContextMenu,
+  Reaction,
   ToggleMenuButtonProps,
   useCall,
   useCallStateHooks,
@@ -74,6 +75,7 @@ const ParticipantViewUI = () => {
   return (
     <>
       <ParticipantDetails />
+      <Reaction participant={participant} />
       {hasAudioTrack && (
         <div className="absolute top-3.5 right-3.5 w-6.5 h-6.5 flex items-center justify-center bg-primary rounded-full">
           <SpeechIndicator

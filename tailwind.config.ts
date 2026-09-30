@@ -1,4 +1,5 @@
 import type { Config } from 'tailwindcss';
+import colors from 'tailwindcss/colors';
 
 const config: Config = {
   content: [
@@ -21,7 +22,8 @@ const config: Config = {
         'icon-blue': 'var(--icon-blue)',
         'hover-primary': '#1a6dde',
         black: '#000000DE',
-        gray: '#444746',
+        // Keep Tailwind's gray-50…950 scale; plain `gray` is Meet's #444746.
+        gray: { ...colors.gray, DEFAULT: '#444746' },
         'meet-gray': '#5f6368',
         'dark-gray': '#3c4043',
         'meet-dark-gray': '#2e3235',

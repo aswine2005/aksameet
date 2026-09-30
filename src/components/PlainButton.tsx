@@ -7,6 +7,7 @@ interface PlainButtonProps {
   disabled?: boolean;
   size?: 'sm' | 'md';
   className?: string;
+  type?: 'button' | 'submit';
 }
 
 const PlainButton = ({
@@ -15,9 +16,11 @@ const PlainButton = ({
   onClick,
   size = 'md',
   className,
+  type = 'button',
 }: PlainButtonProps) => {
   return (
     <button
+      type={type}
       onClick={onClick}
       className={clsx(
         size === 'sm' ? 'h-9 text-sm py-2 px-3' : 'text-base py-3 px-4',

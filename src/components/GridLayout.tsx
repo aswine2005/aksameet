@@ -91,6 +91,7 @@ const GridLayout = () => {
                 ParticipantViewUI={ParticipantViewUI}
                 VideoPlaceholder={VideoPlaceholder}
                 key={participant.sessionId}
+                muteAudio
               />
             ))}
           </>

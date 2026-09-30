@@ -14,7 +14,7 @@ interface PopupProps {
 
 const Popup = forwardRef<HTMLDivElement | null, PopupProps>(function Popup(
   { className, children, height = 305, title, onClose, open = false },
-  ref = null
+  ref
 ) {
   const closePopup = () => {
     if (onClose) {

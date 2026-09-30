@@ -13,20 +13,20 @@ export const metadata: Metadata = {
     'High-definition real-time video meetings powered by Aksa Meet. Connect, collaborate, and share your screen with crystal-clear audio and video.',
 };
 
+// Clerk reads its keys and sign-in/sign-up URLs from the NEXT_PUBLIC_CLERK_*
+// environment variables (see .env.example).
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <AppProvider>
+    <ClerkProvider>
       <html lang="en">
         <body>
-          <ClerkProvider publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}>
-            {children}
-          </ClerkProvider>
+          <AppProvider>{children}</AppProvider>
         </body>
       </html>
-    </AppProvider>
+    </ClerkProvider>
   );
 }

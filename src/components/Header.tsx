@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { SignInButton, UserButton, useUser } from '@clerk/nextjs';
 import clsx from 'clsx';
 
@@ -23,7 +24,7 @@ const Header = ({ navItems = true }: HeaderProps) => {
   return (
     <header className="w-full px-4 sm:px-6 py-3 flex items-center justify-between bg-white/95 backdrop-blur border-b border-gray-100 sticky top-0 z-40">
       <div className="w-64 max-w-full">
-        <a href="/" className="flex items-center gap-2.5 w-full group">
+        <Link href="/" className="flex items-center gap-2.5 w-full group">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-sky-400 flex items-center justify-center text-white shadow-sm shadow-blue-500/20 group-hover:scale-105 transition-transform duration-200">
             <Videocam width={24} height={24} color="#ffffff" />
           </div>
@@ -34,7 +35,7 @@ const Header = ({ navItems = true }: HeaderProps) => {
               HD
             </span>
           </div>
-        </a>
+        </Link>
       </div>
       <div className="flex items-center cursor-default">
         {navItems && (

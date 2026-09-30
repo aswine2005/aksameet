@@ -42,13 +42,19 @@ const useAnimateVideoLayout = (isSpeakerLayout: boolean) => {
       ) as HTMLElement;
 
       const animateItems = contextSafe!(() => {
+        if (!ref.current) return;
+
         const items = Array.from(
           ref.current!.querySelectorAll('.str-video__participant-view')
         );
 
+        if (items.length === 0) return;
+
         let layout = ref.current as HTMLElement;
 
         items.forEach((item, index) => {
+          if (!item) return;
+
           const { left, top, width, height } = item.getBoundingClientRect();
           const container = layout.getBoundingClientRect();
 
@@ -95,6 +101,7 @@ const useAnimateVideoLayout = (isSpeakerLayout: boolean) => {
               `:scope > :not(video):not(.${menuOverlayClassName}):not(.${placeholderClassName}):not(.${speechRingClassName})`
             )
             .forEach((el) => {
+              if (!el) return;
               gsap.fromTo(el, innerFrom, {
                 scaleX: 1,
                 scaleY: 1,
@@ -127,30 +134,36 @@ const useAnimateVideoLayout = (isSpeakerLayout: boolean) => {
             (items.length === 5 && prevPosition.total === 4)
           ) {
             if (video) {
-              gsap.fromTo(
-                item.querySelector(`.${menuOverlayClassName}`),
-                {
-                  background: 'var(--meet-black)',
-                  opacity: 1,
-                  outlineWidth: 2,
-                  outlineStyle: 'solid',
-                  outlineColor: 'var(--meet-black)',
-                  ...(items.length === 1 && {
-                    borderRadius: '0px',
-                  }),
-                },
-                {
-                  opacity: 0,
-                  outlineWidth: 2,
-                  duration: 0.8,
-                  ease: 'power2.inOut',
-                  onComplete: () => {
-                    gsap.set(item.querySelector(`.${menuOverlayClassName}`), {
-                      attr: { style: '' },
-                    });
+              const menuOverlay = item.querySelector(`.${menuOverlayClassName}`);
+              if (menuOverlay) {
+                gsap.fromTo(
+                  menuOverlay,
+                  {
+                    background: 'var(--meet-black)',
+                    opacity: 1,
+                    outlineWidth: 2,
+                    outlineStyle: 'solid',
+                    outlineColor: 'var(--meet-black)',
+                    ...(items.length === 1 && {
+                      borderRadius: '0px',
+                    }),
                   },
-                }
-              );
+                  {
+                    opacity: 0,
+                    outlineWidth: 2,
+                    duration: 0.8,
+                    ease: 'power2.inOut',
+                    onComplete: () => {
+                      const overlay = item.querySelector(`.${menuOverlayClassName}`);
+                      if (overlay) {
+                        gsap.set(overlay, {
+                          attr: { style: '' },
+                        });
+                      }
+                    },
+                  }
+                );
+              }
             }
           }
 

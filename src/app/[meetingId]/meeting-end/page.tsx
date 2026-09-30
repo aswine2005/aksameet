@@ -1,30 +1,22 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { CallingState, useCallStateHooks } from '@stream-io/video-react-sdk';
 
 import Button from '@/components/Button';
 import PlainButton from '@/components/PlainButton';
 
-interface MeetingEndProps {
-  params: {
-    meetingId: string;
-  };
-  searchParams?: {
-    invalid: string;
-  };
-}
-
-const MeetingEnd = ({ params, searchParams }: MeetingEndProps) => {
-  const { meetingId } = params;
+const MeetingEnd = () => {
+  const { meetingId } = useParams<{ meetingId: string }>();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const { useCallCallingState } = useCallStateHooks();
   const callingState = useCallCallingState();
   const audioRef = useRef<HTMLAudioElement>(null);
   const [countdownNumber, setCountdownNumber] = useState(60);
   const [host, setHost] = useState('');
-  const invalidMeeting = searchParams?.invalid === 'true';
+  const invalidMeeting = searchParams.get('invalid') === 'true';
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -33,7 +25,7 @@ const MeetingEnd = ({ params, searchParams }: MeetingEndProps) => {
     if (!invalidMeeting && callingState !== CallingState.LEFT) {
       router.push(`/`);
     }
-    audioRef.current?.play();
+    audioRef.current?.play().catch(() => {});
     setCountdownNumber(59);
 
     const interval = setInterval(() => {
@@ -41,13 +33,15 @@ const MeetingEnd = ({ params, searchParams }: MeetingEndProps) => {
     }, 1000);
 
     return () => clearInterval(interval);
+    // Runs once on arrival; later state changes must not restart the countdown.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     if (countdownNumber === 0) {
-      returnHome();
+      router.push('/');
     }
-  }, [countdownNumber]);
+  }, [countdownNumber, router]);
 
   const rejoinMeeting = () => {
     router.push(`/${meetingId}`);
