@@ -25,4 +25,7 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
+      # Includes the store and API tests, against a real mongod that
+      # mongodb-memory-server downloads -- no database secret needed.
+      - run: npm test
       - run: npm run build

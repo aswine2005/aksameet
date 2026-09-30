@@ -8,8 +8,9 @@ import {
   useMemo,
   useState,
 } from 'react';
-import { useUser } from '@clerk/nextjs';
+import { RedirectToSignIn, useAuth, useUser } from '@clerk/nextjs';
 import {
+  BackgroundFiltersProvider,
   Call,
   CallingState,
   StreamCall,
@@ -20,26 +21,23 @@ import {
 import { StreamChat } from 'stream-chat';
 import { Chat } from 'stream-chat-react';
 
+import type { MeetingSettings } from '@/lib/attendance';
 import { CALL_TYPE } from '@/lib/constants';
 import Button from '../components/Button';
-import GuestNameForm from '../components/GuestNameForm';
+import InvalidMeetingCode from '../components/InvalidMeetingCode';
 import LoadingOverlay from '../components/LoadingOverlay';
 
 export const API_KEY = process.env.NEXT_PUBLIC_STREAM_API_KEY as string;
 
-const GUEST_SESSION_KEY = 'aksa-meet:guest-session';
-const GUEST_NAME_KEY = 'aksa-meet:guest-name';
-// Don't reuse a guest token that would expire in the middle of a meeting.
-const GUEST_SESSION_MIN_REMAINING_MS = 2 * 60 * 60 * 1000;
-
-type TokenResponse = { userId: string; token: string; expiresAt?: number };
-
-type GuestSession = {
-  userId: string;
-  token: string;
-  expiresAt: number;
-  name: string;
-};
+export interface MeetingInfo {
+  id: string;
+  title: string;
+  hostName: string;
+  isHost: boolean;
+  createdAt: string;
+  endedAt: string | null;
+  settings: MeetingSettings;
+}
 
 type Clients = {
   videoClient: StreamVideoClient;
@@ -48,59 +46,35 @@ type Clients = {
 };
 
 type MeetContextValue = {
-  isGuest: boolean;
-  /** Headers that authenticate the current user against this app's API. */
-  authHeaders: Record<string, string>;
-  /** Lets a guest go back to the name form before joining. */
-  editGuestName: () => void;
+  meeting: MeetingInfo | null;
+  isHost: boolean;
+  /** Replace the local copy, e.g. from a heartbeat's reply. */
+  setSettings: (settings: MeetingSettings) => void;
+  /** Change the settings on the server (host only). */
+  saveSettings: (settings: MeetingSettings) => Promise<void>;
+  /** Fetch with a fresh Clerk token, for this app's own API. */
+  api: (path: string, init?: RequestInit) => Promise<Response>;
+  /** Load the meeting again -- e.g. to learn that the host has ended it. */
+  refreshMeeting: () => void;
 };
 
 const MeetContext = createContext<MeetContextValue>({
-  isGuest: false,
-  authHeaders: {},
-  editGuestName: () => null,
+  meeting: null,
+  isHost: false,
+  setSettings: () => null,
+  saveSettings: async () => undefined,
+  api: (path, init) => fetch(path, init),
+  refreshMeeting: () => null,
 });
 
 export const useMeet = () => useContext(MeetContext);
 
-const fetchToken = async (): Promise<TokenResponse> => {
+const fetchToken = async (): Promise<string> => {
   const response = await fetch('/api/token', { method: 'POST' });
   if (!response.ok) {
     throw new Error(`Token request failed with status ${response.status}`);
   }
-  return response.json();
-};
-
-const readGuestSession = (): GuestSession | null => {
-  try {
-    const session: GuestSession | null = JSON.parse(
-      sessionStorage.getItem(GUEST_SESSION_KEY) || 'null'
-    );
-    if (
-      session?.userId &&
-      session.token &&
-      session.name &&
-      session.expiresAt - Date.now() > GUEST_SESSION_MIN_REMAINING_MS
-    ) {
-      return session;
-    }
-  } catch {}
-  return null;
-};
-
-const saveGuestSession = (session: GuestSession) => {
-  try {
-    sessionStorage.setItem(GUEST_SESSION_KEY, JSON.stringify(session));
-    localStorage.setItem(GUEST_NAME_KEY, session.name);
-  } catch {}
-};
-
-const readLastGuestName = () => {
-  try {
-    return localStorage.getItem(GUEST_NAME_KEY) || '';
-  } catch {
-    return '';
-  }
+  return (await response.json()).token;
 };
 
 type MeetProviderProps = {
@@ -110,52 +84,75 @@ type MeetProviderProps = {
 
 const MeetProvider = ({ meetingId, children }: MeetProviderProps) => {
   const { user: clerkUser, isSignedIn, isLoaded } = useUser();
-  // undefined = not read from storage yet, null = guest has no session yet
-  const [guest, setGuest] = useState<GuestSession | null>();
-  const [editingGuestName, setEditingGuestName] = useState(false);
+  const { getToken } = useAuth();
   const [clients, setClients] = useState<Clients>();
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
+  // undefined while loading, null when there is no such meeting
+  const [meeting, setMeeting] = useState<MeetingInfo | null>();
+  const [meetingVersion, setMeetingVersion] = useState(0);
+  const refreshMeeting = useCallback(() => setMeetingVersion((n) => n + 1), []);
 
-  const isGuest = isLoaded && !isSignedIn;
-
-  useEffect(() => {
-    if (isGuest) setGuest(readGuestSession());
-  }, [isGuest]);
+  const api = useCallback(
+    async (path: string, init: RequestInit = {}) => {
+      const token = await getToken().catch(() => null);
+      return fetch(path, {
+        ...init,
+        headers: {
+          ...(init.headers ?? {}),
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+    },
+    [getToken]
+  );
 
   // Primitive values only: Clerk hands out a new `user` object on every
   // session refresh, which must not tear down an ongoing call.
-  const userId = isSignedIn ? clerkUser.id : guest?.userId;
+  const userId = isSignedIn ? clerkUser.id : undefined;
   const userName = isSignedIn
     ? clerkUser.fullName ||
       clerkUser.username ||
       clerkUser.primaryEmailAddress?.emailAddress ||
       'User'
-    : guest?.name;
-  const userImage =
-    isSignedIn && clerkUser.hasImage ? clerkUser.imageUrl : undefined;
-  const guestToken = isSignedIn ? undefined : guest?.token;
+    : undefined;
+  const userImage = isSignedIn && clerkUser.hasImage ? clerkUser.imageUrl : undefined;
+
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    api(`/api/meetings/${meetingId}`)
+      .then(async (response) => {
+        if (cancelled) return;
+        if (response.status === 404) return setMeeting(null);
+        if (!response.ok) throw new Error(`Meeting lookup failed: ${response.status}`);
+        setMeeting((await response.json()) as MeetingInfo);
+      })
+      .catch((err) => {
+        console.error(err);
+        // Only the first load is fatal; a failed refresh keeps what we had.
+        if (!cancelled && meetingVersion === 0) setError("Couldn't load this meeting.");
+      });
+    return () => {
+      cancelled = true;
+    };
+    // `api` is left out on purpose: it changes whenever Clerk refreshes the
+    // session, and a new token is no reason to reload the meeting.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [meetingId, userId, attempt, meetingVersion]);
 
   useEffect(() => {
     if (!userId || !userName) return;
 
     let cancelled = false;
     const user: User = { id: userId, name: userName, image: userImage };
-    // Guests hold a long-lived token; signed-in users fetch (and refresh)
-    // theirs through their Clerk session.
-    const tokenOrProvider =
-      guestToken ?? (async () => (await fetchToken()).token);
-
     const videoClient = new StreamVideoClient({ apiKey: API_KEY });
     const chatClient = new StreamChat(API_KEY);
     const call = videoClient.call(CALL_TYPE, meetingId);
 
     Promise.all([
-      videoClient.connectUser(user, tokenOrProvider),
-      chatClient.connectUser(
-        { id: userId, name: userName, image: userImage },
-        tokenOrProvider
-      ),
+      videoClient.connectUser(user, fetchToken),
+      chatClient.connectUser({ id: userId, name: userName, image: userImage }, fetchToken),
     ])
       .then(() => {
         if (!cancelled) setClients({ videoClient, chatClient, call });
@@ -178,57 +175,52 @@ const MeetProvider = ({ meetingId, children }: MeetProviderProps) => {
         chatClient.disconnectUser().catch(console.error);
       });
     };
-  }, [userId, userName, userImage, guestToken, meetingId, attempt]);
+  }, [userId, userName, userImage, meetingId, attempt]);
 
-  const submitGuestName = useCallback(
-    async (name: string) => {
-      const session = guest
-        ? { ...guest, name }
-        : await fetchToken().then(({ userId, token, expiresAt }) => ({
-            userId,
-            token,
-            expiresAt: expiresAt!,
-            name,
-          }));
-      saveGuestSession(session);
-      setGuest(session);
-      setEditingGuestName(false);
+  const setSettings = useCallback((settings: MeetingSettings) => {
+    setMeeting((current) =>
+      current && JSON.stringify(current.settings) !== JSON.stringify(settings)
+        ? { ...current, settings }
+        : current
+    );
+  }, []);
+
+  const saveSettings = useCallback(
+    async (settings: MeetingSettings) => {
+      const response = await api(`/api/meetings/${meetingId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings }),
+      });
+      if (!response.ok) throw new Error(`Saving settings failed: ${response.status}`);
+      setMeeting((await response.json()) as MeetingInfo);
     },
-    [guest]
+    [api, meetingId]
   );
-
-  const editGuestName = useCallback(() => setEditingGuestName(true), []);
 
   const contextValue = useMemo<MeetContextValue>(
     () => ({
-      isGuest,
-      authHeaders: guestToken
-        ? { Authorization: `Bearer ${guestToken}` }
-        : ({} as Record<string, string>),
-      editGuestName,
+      meeting: meeting ?? null,
+      isHost: !!meeting?.isHost,
+      setSettings,
+      saveSettings,
+      api,
+      refreshMeeting,
     }),
-    [isGuest, guestToken, editGuestName]
+    [meeting, setSettings, saveSettings, api, refreshMeeting]
   );
 
-  if (!isLoaded || (isGuest && guest === undefined)) return <LoadingOverlay />;
-
-  if (isGuest && (guest === null || editingGuestName)) {
-    return (
-      <GuestNameForm
-        meetingId={meetingId}
-        initialName={guest?.name || readLastGuestName()}
-        onSubmit={submitGuestName}
-      />
-    );
-  }
+  // Middleware already sends signed-out visitors to sign in; this is the
+  // belt to its braces, for a session that expires while the page is open.
+  if (isLoaded && !isSignedIn) return <RedirectToSignIn />;
+  if (!isLoaded) return <LoadingOverlay />;
 
   if (error) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-6 px-4 text-center bg-gradient-to-br from-blue-50 via-indigo-50/30 to-white">
         <h1 className="text-3xl font-bold text-gray-900">{error}</h1>
         <p className="text-gray-600 max-w-md">
-          Check your internet connection and try again. If this keeps
-          happening, make sure the Stream API key and secret are configured.
+          Check your internet connection and try again.
         </p>
         <Button size="md" onClick={() => setAttempt((n) => n + 1)}>
           Try again
@@ -237,13 +229,17 @@ const MeetProvider = ({ meetingId, children }: MeetProviderProps) => {
     );
   }
 
-  if (!clients) return <LoadingOverlay />;
+  if (meeting === null) return <InvalidMeetingCode notFound />;
+  if (!clients || meeting === undefined) return <LoadingOverlay />;
 
   return (
     <MeetContext.Provider value={contextValue}>
       <Chat client={clients.chatClient}>
         <StreamVideo client={clients.videoClient}>
-          <StreamCall call={clients.call}>{children}</StreamCall>
+          <StreamCall call={clients.call}>
+            {/* Background blur, on the student's own device. */}
+            <BackgroundFiltersProvider>{children}</BackgroundFiltersProvider>
+          </StreamCall>
         </StreamVideo>
       </Chat>
     </MeetContext.Provider>

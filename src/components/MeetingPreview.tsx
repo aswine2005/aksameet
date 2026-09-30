@@ -10,14 +10,13 @@ import {
   AudioOutputDeviceSelector,
   VideoInputDeviceSelector,
 } from './DeviceSelector';
+import BlurToggle from './BlurToggle';
 import IconButton from './IconButton';
-import MoreVert from './icons/MoreVert';
 import Mic from './icons/Mic';
 import MicOff from './icons/MicOff';
 import SpeechIndicator from './SpeechIndicator';
 import Videocam from './icons/Videocam';
 import VideocamOff from './icons/VideocamOff';
-import VisualEffects from './icons/VisualEffects';
 import useSoundDetected from '../hooks/useSoundDetected';
 
 const MeetingPreview = () => {
@@ -140,6 +139,7 @@ const MeetingPreview = () => {
                 <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse border-2 border-white" />
               )}
             </div>
+            {hasCameraPermission && <BlurToggle variant="preview" />}
           </div>
         )}
         
@@ -161,24 +161,6 @@ const MeetingPreview = () => {
           </div>
         )}
         
-        {devicesEnabled && (
-          <>
-            <div className="z-2 absolute top-4 right-4 [&>button]:w-11 [&>button]:h-11 [&>button]:border-none [&>button]:transition-all [&>button]:hover:bg-white/20 [&>button]:hover:scale-110 [&>button]:hover:shadow-lg [&>button]:backdrop-blur-sm">
-              <IconButton
-                title="More options"
-                icon={<MoreVert />}
-                variant="secondary"
-              />
-            </div>
-            <div className="z-3 absolute bottom-4 right-4 [&>button]:w-11 [&>button]:h-11 [&>button]:border-none [&>button]:transition-all [&>button]:hover:bg-white/20 [&>button]:hover:scale-110 [&>button]:hover:shadow-lg [&>button]:backdrop-blur-sm">
-              <IconButton
-                icon={<VisualEffects />}
-                title="Apply visual effects"
-                variant="secondary"
-              />
-            </div>
-          </>
-        )}
       </div>
       
       {/* Device Selectors */}

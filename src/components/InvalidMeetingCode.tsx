@@ -3,7 +3,7 @@ import { useRouter } from 'next/navigation';
 import Button from './Button';
 import Header from './Header';
 
-const InvalidMeetingCode = () => {
+const InvalidMeetingCode = ({ notFound = false }: { notFound?: boolean }) => {
   const router = useRouter();
 
   return (
@@ -15,11 +15,17 @@ const InvalidMeetingCode = () => {
           <div className="relative text-8xl">⚠️</div>
         </div>
         <h1 className="text-4xl sm:text-5xl leading-tight font-bold text-gray-900 tracking-normal mb-4 text-center">
-          Invalid meeting code
+          {notFound ? "This meeting doesn't exist" : 'Invalid meeting code'}
         </h1>
         <p className="text-lg text-gray-600 mb-8 text-center max-w-md">
-          Meeting codes look like <span className="font-mono">abc-defg-hij</span>
-          . Check the link you were sent and try again.
+          {notFound ? (
+            'Check the link you were sent, or ask the host for a new one.'
+          ) : (
+            <>
+              Meeting codes look like <span className="font-mono">abc-defg-hij</span>. Check
+              the link you were sent and try again.
+            </>
+          )}
         </p>
         <Button size="md" onClick={() => router.push('/')} className="shadow-xl">
           Return to home

@@ -1,4 +1,3 @@
-import Image from 'next/image';
 import { useEffect } from 'react';
 import { useCall, useConnectedUser } from '@stream-io/video-react-sdk';
 
@@ -89,17 +88,10 @@ const MeetingPopup = () => {
         <div className="mt-2">
           <Clipboard value={clipboardValue} />
         </div>
-        <div className="my-4 flex items-center gap-2">
-          <Image
-            width={26}
-            height={26}
-            alt="Your meeting is safe"
-            src="https://www.gstatic.com/meet/security_shield_with_background_2f8144e462c57b3e56354926e0cda615.svg"
-          />
-          <div className="text-xs font-roboto text-meet-gray tracking-wide">
-            People who use this meeting link must get your permission before
-            they can join.
-          </div>
+        <div className="my-4 text-xs font-roboto text-meet-gray tracking-wide">
+          Anyone with the link must sign in to join, so attendance shows who was there. Open{' '}
+          <span className="font-semibold">Class insights</span> (the shield icon) to see who is
+          attending — only you can see it.
         </div>
         <div className="text-xs font-roboto text-meet-gray tracking-wide">
           Joined as {email}

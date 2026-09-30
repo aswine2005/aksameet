@@ -18,7 +18,18 @@ import { DefaultStreamChatGenerics, useChatContext } from 'stream-chat-react';
 import clsx from 'clsx';
 
 import { CHAT_CHANNEL_TYPE } from '@/lib/constants';
+import { STATE_LABEL } from '@/lib/attention';
 import { useMeet } from '@/contexts/MeetProvider';
+import { HostInsightsProvider } from '@/contexts/HostInsights';
+import { useAttentionTracker } from '@/hooks/useAttentionTracker';
+import { useHostLive } from '@/hooks/useHostLive';
+import { usePresence } from '@/hooks/usePresence';
+import { chime } from '@/lib/client/chime';
+import { clock } from '@/lib/client/format';
+import BlurToggle from '@/components/BlurToggle';
+import HostLeaveMenu from '@/components/HostLeaveMenu';
+import InsightsPanel from '@/components/InsightsPanel';
+import Insights from '@/components/icons/Insights';
 import CallControlButton from '@/components/CallControlButton';
 import CallInfoButton from '@/components/CallInfoButton';
 import CallEndFilled from '@/components/icons/CallEndFilled';
@@ -42,9 +53,10 @@ import ToggleAudioButton from '@/components/ToggleAudioButton';
 import ToggleVideoButton from '@/components/ToggleVideoButton';
 import useTime from '@/hooks/useTime';
 
-type SidePanel = 'chat' | 'people' | 'info';
+type SidePanel = 'chat' | 'people' | 'info' | 'insights';
 
 type ChatToast = { id: string; author: string; text: string };
+type AlertToast = { id: string; text: string };
 
 const RECONNECTING_STATES = [
   CallingState.RECONNECTING,
@@ -54,11 +66,10 @@ const RECONNECTING_STATES = [
 
 const Meeting = () => {
   const { meetingId } = useParams<{ meetingId: string }>();
-  const audioRef = useRef<HTMLAudioElement>(null);
   const router = useRouter();
   const call = useCall();
   const user = useConnectedUser();
-  const { authHeaders } = useMeet();
+  const { api, meeting, isHost, setSettings } = useMeet();
   const { currentTime } = useTime();
   const { client: chatClient } = useChatContext();
   const {
@@ -96,6 +107,43 @@ const Meeting = () => {
     callingState !== CallingState.IDLE &&
     callingState !== CallingState.LEFT;
 
+  // Measured on this device, and only for participants: the host is running
+  // the class, not attending it.
+  //
+  // **In the call, not merely JOINED.** A network blip moves the call to
+  // RECONNECTING for a second or two; keyed on JOINED, that sent a leave and
+  // a fresh join -- a phantom rejoin and a gap on the student's attendance,
+  // and a reload of the attention model -- for a connection that never
+  // actually left.
+  const measuring = isInCall && !isHost && !!meeting?.settings.attention;
+  const { status: trackerStatus, takeTotals } = useAttentionTracker(measuring);
+  usePresence({ meetingId, active: isInCall, takeTotals, onSettings: setSettings });
+  const { data: live } = useHostLive(meetingId, isInCall && isHost);
+  const [alertToast, setAlertToast] = useState<AlertToast>();
+  const announced = useRef(new Set<string>());
+
+  // One toast per episode: a student is announced when they cross the
+  // threshold, and again only after they have come back and drifted off anew.
+  useEffect(() => {
+    if (!live) return;
+    const current = new Set(live.alerts.map((a) => a.userId));
+    for (const id of Array.from(announced.current)) {
+      if (!current.has(id)) announced.current.delete(id);
+    }
+    const fresh = live.alerts.find((a) => !announced.current.has(a.userId));
+    if (fresh) {
+      announced.current.add(fresh.userId);
+      const what = STATE_LABEL[fresh.state as keyof typeof STATE_LABEL]?.toLowerCase() ?? 'away';
+      setAlertToast({ id: `${fresh.userId}-${live.now}`, text: `${fresh.name}: ${what} for ${clock(fresh.forMs)}` });
+    }
+  }, [live]);
+
+  useEffect(() => {
+    if (!alertToast) return;
+    const timeout = setTimeout(() => setAlertToast(undefined), 8000);
+    return () => clearTimeout(timeout);
+  }, [alertToast]);
+
   const copyMeetingLink = () => {
     const url = `${window.location.origin}/${meetingId}`;
     navigator.clipboard.writeText(url).catch(console.error);
@@ -130,10 +178,7 @@ const Meeting = () => {
     const joinChat = async () => {
       try {
         setChatError(false);
-        const response = await fetch(`/api/meetings/${meetingId}/chat`, {
-          method: 'POST',
-          headers: authHeaders,
-        });
+        const response = await api(`/api/meetings/${meetingId}/chat`, { method: 'POST' });
         if (!response.ok) {
           throw new Error(`Chat join failed with status ${response.status}`);
         }
@@ -150,7 +195,7 @@ const Meeting = () => {
     return () => {
       cancelled = true;
     };
-  }, [isJoined, chatChannel, chatClient, meetingId, authHeaders, chatAttempt]);
+  }, [isJoined, chatChannel, chatClient, meetingId, api, chatAttempt]);
 
   useEffect(() => {
     isChatOpenRef.current = isChatOpen;
@@ -183,9 +228,7 @@ const Meeting = () => {
   }, [chatToast]);
 
   useEffect(() => {
-    if (participants.length > prevParticipantsCount) {
-      audioRef.current?.play().catch(() => {});
-    }
+    if (participants.length > prevParticipantsCount && prevParticipantsCount > 0) chime('up');
     setPrevParticipantsCount(participants.length);
   }, [participants.length, prevParticipantsCount]);
 
@@ -208,6 +251,16 @@ const Meeting = () => {
     }
   };
 
+  const endForEveryone = async () => {
+    try {
+      const response = await api(`/api/meetings/${meetingId}/end`, { method: 'POST' });
+      if (!response.ok) throw new Error(String(response.status));
+    } catch (error) {
+      console.error('Error ending meeting:', error);
+    }
+    await leaveCall();
+  };
+
   const toggleScreenShare = async () => {
     try {
       await screenShare.toggle();
@@ -224,6 +277,7 @@ const Meeting = () => {
   if (!isInCall) return null;
 
   return (
+    <HostInsightsProvider data={isHost ? live : null}>
     <StreamTheme className="root-theme">
       <div className="relative w-svw h-svh bg-gradient-to-b from-gray-900 via-[#16171b] to-black overflow-hidden">
         {/* Everyone's audio is rendered once here, independent of which
@@ -272,12 +326,26 @@ const Meeting = () => {
                 </svg>
               )}
             </button>
+            {!isHost && (meeting?.settings.attendance || meeting?.settings.attention) && (
+              <span
+                className="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs text-gray-300"
+                title="Your video is analysed on this device and never recorded. Only the host sees the results; you can see your own record in History."
+              >
+                {meeting?.settings.attendance && 'Attendance on'}
+                {meeting?.settings.attendance && meeting?.settings.attention && ' · '}
+                {meeting?.settings.attention &&
+                  (trackerStatus === 'unavailable' ? 'Attention insights unavailable' : 'Attention insights on')}
+              </span>
+            )}
           </div>
 
           {/* Main Meeting Controls */}
           <div className="relative flex grow shrink basis-1/4 items-center justify-center px-1.5 gap-2 sm:gap-3">
             <ToggleAudioButton />
             <ToggleVideoButton />
+            <div className="hidden sm:block">
+              <BlurToggle variant="call" />
+            </div>
             <ReactionsControl className="hidden sm:block" />
             {screenShareSupported && canScreenShare && (
               <CallControlButton
@@ -293,7 +361,7 @@ const Meeting = () => {
             <div className="hidden sm:block">
               <RecordCallButton />
             </div>
-            <div className="hidden sm:block relative">
+            {isHost && <div className="hidden sm:block relative">
               <CallControlButton
                 onClick={() => setIsRecordingListOpen((prev) => !prev)}
                 icon={<MoreVert />}
@@ -304,21 +372,39 @@ const Meeting = () => {
                 isOpen={isRecordingListOpen}
                 onClose={() => setIsRecordingListOpen(false)}
               />
-            </div>
+            </div>}
 
-            {/* Leave Call Button - Enhanced */}
-            <button
-              onClick={leaveCall}
-              title="Leave call"
-              className="h-11 px-4 rounded-full bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-semibold inline-flex items-center justify-center gap-2 shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 active:scale-95 border border-red-500/30"
-            >
-              <CallEndFilled />
-              <span className="hidden sm:inline text-sm">Leave</span>
-            </button>
+            {isHost ? (
+              <HostLeaveMenu onLeave={leaveCall} onEnd={endForEveryone} />
+            ) : (
+              <button
+                onClick={leaveCall}
+                title="Leave call"
+                className="h-11 px-4 rounded-full bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-semibold inline-flex items-center justify-center gap-2 shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 active:scale-95 border border-red-500/30"
+              >
+                <CallEndFilled />
+                <span className="hidden sm:inline text-sm">Leave</span>
+              </button>
+            )}
           </div>
 
           {/* Meeting Actions */}
           <div className="flex sm:grow shrink sm:basis-1/4 items-center justify-end gap-1 sm:gap-2 sm:mr-2">
+            {isHost && (
+              <div className="relative">
+                <CallInfoButton
+                  onClick={() => togglePanel('insights')}
+                  icon={<Insights color={sidePanel === 'insights' ? 'var(--icon-blue)' : undefined} />}
+                  title="Class insights (only you)"
+                  className="hover:scale-110 transition-transform"
+                />
+                {(live?.alerts.length ?? 0) > 0 && (
+                  <span className="pointer-events-none absolute -top-0.5 -right-0.5 min-w-5 h-5 px-1 rounded-full bg-red-600 text-white text-[11px] font-semibold flex items-center justify-center">
+                    {live!.alerts.length}
+                  </span>
+                )}
+              </div>
+            )}
             <CallInfoButton
               onClick={() => togglePanel('info')}
               icon={
@@ -380,6 +466,25 @@ const Meeting = () => {
           </button>
         )}
 
+        {isHost && alertToast && (
+          <button
+            type="button"
+            key={alertToast.id}
+            onClick={() => setSidePanel('insights')}
+            className="z-10 absolute left-4 bottom-24 max-w-[min(22rem,calc(100vw-2rem))] text-left px-4 py-3 rounded-xl bg-red-600 text-white shadow-xl animate-fade-in"
+          >
+            <div className="text-xs font-semibold uppercase tracking-wide opacity-80">Only you can see this</div>
+            <div className="text-sm font-medium">{alertToast.text}</div>
+          </button>
+        )}
+
+        {isHost && (
+          <InsightsPanel
+            meetingId={meetingId}
+            isOpen={sidePanel === 'insights'}
+            onClose={() => setSidePanel(null)}
+          />
+        )}
         <ChatPopup
           channel={chatChannel}
           error={chatError}
@@ -397,12 +502,9 @@ const Meeting = () => {
           onClose={() => setSidePanel(null)}
         />
         {isCreator && <MeetingPopup />}
-        <audio
-          ref={audioRef}
-          src="https://www.gstatic.com/meet/sounds/join_call_6a6a67d6bcc7a4e373ed40fdeff3930a.ogg"
-        />
       </div>
     </StreamTheme>
+    </HostInsightsProvider>
   );
 };
 

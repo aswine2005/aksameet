@@ -27,8 +27,8 @@ import KeepFilled from './icons/KeepFilled';
 import KeepOffFilled from './icons/KeepOffFilled';
 import KeepPublicFilled from './icons/KeepPublicFilled';
 import MicOffFilled from './icons/MicOffFilled';
+import AttentionBadge from './AttentionBadge';
 import SpeechIndicator from './SpeechIndicator';
-import VisualEffects from './icons/VisualEffects';
 import MoreVert from './icons/MoreVert';
 
 export const speechRingClassName = 'speech-ring';
@@ -75,6 +75,7 @@ const ParticipantViewUI = () => {
   return (
     <>
       <ParticipantDetails />
+      {!isLocalParticipant && <AttentionBadge userId={userId} />}
       <Reaction participant={participant} />
       {hasAudioTrack && (
         <div className="absolute top-3.5 right-3.5 w-6.5 h-6.5 flex items-center justify-center bg-primary rounded-full">
@@ -110,7 +111,7 @@ const ParticipantViewUI = () => {
       <div
         className={clsx(
           showMenu ? 'opacity-60' : 'opacity-0',
-          'z-2 absolute left-[calc(50%-66px)] top-[calc(50%-22px)] flex items-center justify-center h-11 transition-opacity duration-300 ease-linear overflow-hidden',
+          'z-2 absolute left-[calc(50%-44px)] top-[calc(50%-22px)] flex items-center justify-center h-11 transition-opacity duration-300 ease-linear overflow-hidden',
           'shadow-[0_1px_2px_0px_rgba(0,0,0,0.3),_0_1px_3px_1px_rgba(0,0,0,.15)] bg-meet-black rounded-full h-11 hover:opacity-90'
         )}
       >
@@ -128,7 +129,6 @@ const ParticipantViewUI = () => {
             <Button title="Unpin" onClick={unpin} icon={<KeepOffFilled />} />
           )}
         </div>
-        <Button title="Apply visual effects" icon={<VisualEffects />} />
         <div className="[&_ul>*:nth-child(-n+3)]:hidden">
           <MenuToggle
             strategy="fixed"

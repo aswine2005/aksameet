@@ -3,25 +3,21 @@ import {
   CHAT_CHANNEL_TYPE,
   MEETING_ID_REGEX,
 } from '@/lib/constants';
-import {
-  errorResponse,
-  getRequestUserId,
-  getStreamClient,
-  isNotFoundError,
-} from '@/lib/stream-server';
+import { userId as signedInUserId } from '@/lib/server';
+import { errorResponse, getStreamClient, isNotFoundError } from '@/lib/stream-server';
 
 type RouteContext = { params: Promise<{ meetingId: string }> };
 
 // POST /api/meetings/:meetingId/chat — adds the caller to the meeting's chat
 // channel. `messaging` channels only let members read and post, and clients
 // can't add themselves, so membership has to be granted server-side.
-export async function POST(request: Request, { params }: RouteContext) {
+export async function POST(_request: Request, { params }: RouteContext) {
   const { meetingId } = await params;
   if (!MEETING_ID_REGEX.test(meetingId)) {
     return Response.json({ error: 'Invalid meeting code' }, { status: 400 });
   }
 
-  const userId = await getRequestUserId(request);
+  const userId = await signedInUserId();
   if (!userId) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }

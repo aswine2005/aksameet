@@ -1,16 +1,14 @@
 import type { Metadata } from 'next';
 import { ClerkProvider } from '@clerk/nextjs';
 
-import AppProvider from '../contexts/AppProvider';
-
 import '@stream-io/video-react-sdk/dist/css/styles.css';
 import 'stream-chat-react/dist/css/v2/index.css';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Aksa Meet - Real-Time Video Calls & Meetings',
+  title: 'AksaMeet — classes with integrity, by AksaRank',
   description:
-    'High-definition real-time video meetings powered by Aksa Meet. Connect, collaborate, and share your screen with crystal-clear audio and video.',
+    'HD video meetings with automatic attendance and private, on-device attention insights for the host. Part of the AksaRank ecosystem.',
 };
 
 // Clerk reads its keys and sign-in/sign-up URLs from the NEXT_PUBLIC_CLERK_*
@@ -21,10 +19,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <ClerkProvider>
+    <ClerkProvider afterSignOutUrl="/">
       <html lang="en">
         <body>
-          <AppProvider>{children}</AppProvider>
+          {children}
         </body>
       </html>
     </ClerkProvider>
